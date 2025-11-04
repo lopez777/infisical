@@ -1,0 +1,57 @@
+name: Snyk Security Scan
+
+on: [push, pull_request]
+
+jobs:
+  snyk:
+    name: Run Snyk Security Scan
+    runs-on: ubuntu-latest
+
+    env:
+      SNYK_TOKEN: 25ec6137-5d45-43ca-90d8-14a50165e212
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install Dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Install Snyk CLI
+        run: npm install -g snyk
+
+      # --- Scan for vulnerabilities in dependencies (SCA) ---
+      - name: Run Snyk Dependency Scan
+        run: snyk test --all-projects --json > snyk-dependency-results.json || true
+
+      # --- Run Static Code Analysis (SAST) ---
+      - name: Run Snyk Code Scan
+        run: snyk code test --json > snyk-code-results.json || true
+
+      # --- Optional: Output readable summaries ---
+      - name: Display Summary
+        run: |
+          echo "=== Dependency Scan Summary ==="
+          snyk test --all-projects --severity-threshold=medium || true
+          echo
+          echo "=== Code Scan Summary ==="
+          snyk code test --severity-threshold=medium || true
+
+      # --- Upload results as workflow artifacts (optional but useful) ---
+      - name: Upload Snyk Reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: snyk-scan-results
+          path: |
+            snyk-dependency-results.json
+            snyk-code-results.json
